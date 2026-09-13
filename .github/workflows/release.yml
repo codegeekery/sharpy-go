@@ -11,6 +11,7 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -53,7 +54,9 @@ jobs:
         if: matrix.goos == 'windows'
         shell: pwsh
         run: |
-          choco install pkgconfiglite -y
+          # mingw incluye gcc, necesario porque CGO_ENABLED=1 requiere
+          # un compilador de C disponible para compilar los bindings de libvips.
+          choco install pkgconfiglite mingw -y
 
           # Buscar dinámicamente el asset "x64-all" del último release, en vez de
           # hardcodear una versión y un nombre de archivo que cambian con el tiempo.
