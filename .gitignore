@@ -1,0 +1,35 @@
+# Compiled binaries
+sharpy
+sharpy.exe
+/dist/
+
+# Cross-compiled Go binaries (in case they're built manually with these names)
+sharpy-linux-*
+sharpy-darwin-*
+sharpy-windows-*
+
+# Go test/coverage artifacts
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# Vendored dependencies (if not versioned)
+/vendor/
+
+# Environment variables / local config
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log

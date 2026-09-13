@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact: sharpy-linux-amd64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact: sharpy-windows-amd64.exe
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact: sharpy-darwin-arm64
+          - os: macos-13
+            goos: darwin
+            goarch: amd64
+            artifact: sharpy-darwin-amd64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      # --- Instalar libvips según el sistema operativo del runner ---
+      - name: Install libvips (Linux)
+        if: matrix.goos == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y libvips-dev
+
+      - name: Install libvips (macOS)
+        if: matrix.goos == 'darwin'
+        run: brew install vips
+
+      - name: Install libvips (Windows)
+        if: matrix.goos == 'windows'
+        shell: pwsh
+        run: |
+          choco install pkgconfiglite -y
+
+          # Buscar dinámicamente el asset "x64-all" del último release, en vez de
+          # hardcodear una versión y un nombre de archivo que cambian con el tiempo.
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/libvips/build-win64-mxe/releases/latest"
+          $asset = $release.assets | Where-Object { $_.name -match "vips-dev-x64-all-.*\.zip$" } | Select-Object -First 1
+
+          if (-not $asset) {
+            Write-Error "No se encontró un asset 'vips-dev-x64-all-*.zip' en el último release de libvips/build-win64-mxe"
+            exit 1
+          }
+
+          Write-Host "Descargando $($asset.name) ..."
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile vips.zip
+          Expand-Archive -Path vips.zip -DestinationPath vips
+
+          # La carpeta interna del zip tiene el nombre de versión (ej: vips-dev-8.18),
+          # así que la detectamos en vez de asumirla.
+          $vipsDir = Get-ChildItem -Path vips -Directory | Select-Object -First 1
+
+          echo "PKG_CONFIG_PATH=$($vipsDir.FullName)\lib\pkgconfig" >> $env:GITHUB_ENV
+          echo "$($vipsDir.FullName)\bin" >> $env:GITHUB_PATH
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 1
+        run: go build -o dist/${{ matrix.artifact }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
