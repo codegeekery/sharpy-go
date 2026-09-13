@@ -58,9 +58,14 @@ func ConvertOne(src string, outFmt format.OutputFormat, p Params) Result {
 	if err != nil {
 		return Result{Src: src, Dest: dest, OK: false, Reason: err.Error()}
 	}
-	defer img.Close()
 
 	out, ok, err := format.Export(img, outFmt, p.Quality, p.HasQuality)
+	// Close the decoded image buffer as soon as encoding is done, instead
+	// of waiting for a deferred Close at the end of the function — this
+	// frees the (usually large, uncompressed) decode buffer before we even
+	// get to the disk write below.
+	img.Close()
+
 	if !ok {
 		return Result{Src: src, Dest: dest, OK: false, Reason: fmt.Sprintf("Unsupported output format: %s", outFmt)}
 	}

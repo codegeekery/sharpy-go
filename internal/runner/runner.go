@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,7 +18,6 @@ import (
 )
 
 const (
-	concurrency     = 4
 	removeRetries   = 3
 	removeRetryWait = 1 * time.Second
 )
@@ -46,14 +46,22 @@ func Run(files []string, outFmt format.OutputFormat, opts cliopts.Options) Summa
 	var done int64
 	total := len(files)
 	results := make([]converter.Result, total)
-	var resultsMu sync.Mutex
 	var wg sync.WaitGroup
 
 	bar := newProgressBar(total)
 
-	workerCount := concurrency
+	// One worker per 2 CPU cores: image encoding is memory-heavy (each
+	// worker holds a full decoded buffer plus encoder working buffers), so
+	// scaling workers 1:1 with cores caused RAM usage to balloon without a
+	// proportional speed gain. This ratio keeps CPU well fed without
+	// over-committing memory.
+	
+        workerCount := runtime.NumCPU() / 2
+	if workerCount < 1 {
+	    workerCount = 1
+	}
 	if total < workerCount {
-		workerCount = total
+	    workerCount = total
 	}
 
 	worker := func() {
@@ -63,12 +71,11 @@ func Run(files []string, outFmt format.OutputFormat, opts cliopts.Options) Summa
 			if int(i) >= total {
 				return
 			}
+			
 			current := files[i]
 			res := converter.ConvertOne(current, outFmt, params)
-
-			resultsMu.Lock()
+			
 			results[i] = res
-			resultsMu.Unlock()
 
 			if !res.OK {
 				bar.logLine(formatFailureLine(current, res, opts.Dir))
@@ -114,12 +121,16 @@ func formatFailureLine(src string, res converter.Result, baseDir string) string 
 
 // removeOriginal attempts to delete the original file with retries, since
 // on some filesystems/network shares the file may remain briefly locked
-// after reading. Messages go through bar.logLine so as not to overwrite
-// the progress bar line.
+// after reading. The first attempt happens immediately; only retries after
+// a failure wait, to avoid a fixed delay on the common case where deletion
+// succeeds right away. Messages go through bar.logLine so as not to
+// overwrite the progress bar line.
 func removeOriginal(src, baseDir string, bar *progressBar) {
 	var lastErr error
 	for tries := 0; tries < removeRetries; tries++ {
-		time.Sleep(removeRetryWait)
+		if tries > 0 {
+			time.Sleep(removeRetryWait)
+		}
 		if err := os.Remove(src); err != nil {
 			lastErr = err
 			continue

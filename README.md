@@ -115,6 +115,30 @@ sharpy avif --rename uuid -r
 - The resulting binary is a native executable with no Node.js/npm dependency — it only needs
   libvips installed on the system at runtime (dynamically linked).
 
+
+
+## 📊 Benchmark
+
+Conversion over the same input image set, using govips (libvips) with parallel processing (`workerCount = NumCPU() / 2`).
+
+| Format | Images processed | Total time   | Average speed |
+|--------|-------------------|--------------|----------------|
+| WebP   | 1409               | 18s          | ~78.3 img/s    |
+| AVIF   | 210                | 1m 20s (80s) | ~2.6 img/s     |
+
+> **Note:** AVIF is noticeably slower than WebP because its encoding algorithm (based on AV1) is computationally much more expensive,
+ even with `Effort: 0` (the fastest available setting). This is an expected trade-off: AVIF typically achieves better compression at the same visual quality,
+ at the cost of higher CPU time per image.
+
+**Test environment:**
+- CPU: AMD Ryzen 9 5900X (12 cores / 24 threads) @ 4.95 GHz
+- RAM: 32 GiB
+- Disk: NVMe SSD (btrfs)
+- OS: openSUSE Tumbleweed x86_64
+- Workers used: `NumCPU() / 2`
+
+
+
 ## Project structure
 
 ```

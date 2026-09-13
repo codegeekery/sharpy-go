@@ -5,14 +5,14 @@ import (
 	"sync"
 )
 
-// progressBar imprime un contador "N/Total" que se actualiza en el lugar
-// (usando retorno de carro \r) a medida que los workers terminan archivos.
-// Los mensajes que necesitan quedar como historial permanente (fallos,
-// borrados de originales) se emiten con logLine, que primero limpia la
-// línea de la barra, imprime el mensaje en una línea nueva, y vuelve a
-// dibujar la barra debajo.
+// progressBar prints an "N/Total" counter that updates in place
+// (using carriage return \r) as workers finish files.
+// Messages that need to remain as permanent history (failures,
+// deleted originals) are emitted via logLine, which first clears
+// the bar's line, prints the message on a new line, and redraws
+// the bar below it.
 //
-// Es seguro llamarlo concurrentemente desde múltiples goroutines.
+// It is safe to call concurrently from multiple goroutines.
 type progressBar struct {
 	mu    sync.Mutex
 	total int
@@ -23,8 +23,6 @@ func newProgressBar(total int) *progressBar {
 	return &progressBar{total: total}
 }
 
-// increment redibuja la barra con el nuevo conteo de "done" (ya calculado
-// atómicamente por el caller, para mantener un único contador de verdad).
 func (b *progressBar) increment(done int64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -32,18 +30,14 @@ func (b *progressBar) increment(done int64) {
 	b.render()
 }
 
-// logLine imprime un mensaje permanente sin romper la barra: borra la
-// línea actual, escribe el mensaje, y vuelve a pintar la barra.
 func (b *progressBar) logLine(msg string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	fmt.Print("\r\033[K") // \r + limpiar línea hasta el final
+	fmt.Print("\r\033[K")
 	fmt.Println(msg)
 	b.render()
 }
 
-// finish deja la barra al 100% y agrega el salto de línea final, para que
-// lo que se imprima después (el resumen) empiece en línea limpia.
 func (b *progressBar) finish() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -51,7 +45,6 @@ func (b *progressBar) finish() {
 	fmt.Println()
 }
 
-// render dibuja la barra actual. Debe llamarse con b.mu ya tomado.
 func (b *progressBar) render() {
 	if b.total == 0 {
 		return

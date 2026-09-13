@@ -98,20 +98,27 @@ func Export(img *vips.ImageRef, f OutputFormat, quality int, hasQuality bool) (b
 	case JPEG:
 		buf, _, err = img.ExportJpeg(&vips.JpegExportParams{
 			Quality: qualityOr(80),
+			StripMetadata: true,
 		})
 	case WebP:
 		buf, _, err = img.ExportWebp(&vips.WebpExportParams{
 			Quality: qualityOr(80),
+			StripMetadata: true,
 		})
 	case AVIF:
 		buf, _, err = img.ExportAvif(&vips.AvifExportParams{
 			Quality: qualityOr(50),
+                        Effort:  0, // 0 = más rápido, 9 = más lento pero mejor compresión
+                        Bitdepth: 8,
+			Lossless: false,
+                        StripMetadata: true,
 		})
 	case PNG:
 		buf, _, err = img.ExportPng(vips.NewPngExportParams())
 	case TIFF:
 		buf, _, err = img.ExportTiff(&vips.TiffExportParams{
 			Quality: qualityOr(80),
+			StripMetadata: true,
 		})
 	default:
 		return nil, false, nil

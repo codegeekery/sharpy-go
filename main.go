@@ -7,6 +7,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 
 	"github.com/davidbyttow/govips/v2/vips"
@@ -43,13 +44,24 @@ func main() {
 		return
 	}
 
+	// More aggressive GC to keep peak memory down under heavy concurrent
+	// image processing (large short-lived buffers per image), at a small
+	// CPU cost.
+	debug.SetGCPercent(50)
+        debug.SetMemoryLimit(4 << 30)
+
 	// Silence govips/libvips internal logging (info/debug noise) so only
 	// our own output is shown to the user.
 	vips.LoggingSettings(nil, vips.LogLevelError)
 
 	// govips needs to explicitly initialize libvips before use, and free
 	// its resources on exit. bimg used to do this implicitly; govips doesn't.
-	vips.Startup(nil)
+	// ConcurrencyLevel is set to 1 because we already parallelize across
+	// images ourselves (see runner); letting libvips also multithread a
+	// single image would fight our own worker pool for CPU.
+	vips.Startup(&vips.Config{
+		ConcurrencyLevel: 1,
+	})
 	defer vips.Shutdown()
 
 	fmt.Printf("Found %d image(s). Converting to %s... [rename: %s]\n",
