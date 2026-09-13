@@ -1,4 +1,4 @@
-// Package converter aplica la conversión de una imagen individual usando govips.
+// Package converter applies the conversion of a single image using govips.
 package converter
 
 import (
@@ -35,23 +35,23 @@ func DestPath(src string, outFmt format.OutputFormat, rename naming.Strategy) st
 	return filepath.Join(dir, base+format.Ext(outFmt))
 }
 
-// ConvertOne lee, convierte y escribe una sola imagen. No borra el original:
-// eso es responsabilidad del llamador (ver runner).
+// ConvertOne reads, converts, and writes a single image. It does not delete
+// the original: that's the caller's responsibility (see runner).
 func ConvertOne(src string, outFmt format.OutputFormat, p Params) Result {
 	dest := DestPath(src, outFmt, p.Rename)
 
 	if !p.Force && scanner.FileExists(dest) {
-		return Result{Src: src, Dest: dest, OK: false, Reason: "destino ya existe (usa --force para sobrescribir)"}
+		return Result{Src: src, Dest: dest, OK: false, Reason: "destination already exists (use --force to overwrite)"}
 	}
 
-	// Validamos el formato incluso en dry-run, para que la simulación
-	// detecte el mismo tipo de errores que una corrida real.
+	// We validate the format even in dry-run, so the simulation
+	// detects the same kind of errors as a real run.
 	if !format.IsSupported(outFmt) {
-		return Result{Src: src, Dest: dest, OK: false, Reason: fmt.Sprintf("Formato de salida no manejado: %s", outFmt)}
+		return Result{Src: src, Dest: dest, OK: false, Reason: fmt.Sprintf("Unsupported output format: %s", outFmt)}
 	}
 
 	if p.DryRun {
-		return Result{Src: src, Dest: dest, OK: true, DryRun: true, Reason: "(dry-run, no se escribió nada)"}
+		return Result{Src: src, Dest: dest, OK: true, DryRun: true, Reason: "(dry-run, nothing was written)"}
 	}
 
 	img, err := vips.NewImageFromFile(src)
@@ -62,7 +62,7 @@ func ConvertOne(src string, outFmt format.OutputFormat, p Params) Result {
 
 	out, ok, err := format.Export(img, outFmt, p.Quality, p.HasQuality)
 	if !ok {
-		return Result{Src: src, Dest: dest, OK: false, Reason: fmt.Sprintf("Formato de salida no manejado: %s", outFmt)}
+		return Result{Src: src, Dest: dest, OK: false, Reason: fmt.Sprintf("Unsupported output format: %s", outFmt)}
 	}
 	if err != nil {
 		return Result{Src: src, Dest: dest, OK: false, Reason: err.Error()}

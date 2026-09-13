@@ -1,6 +1,6 @@
-// Package runner orquesta la conversión concurrente de un lote de imágenes:
-// reparte trabajo entre workers, borra originales si corresponde, e imprime
-// el progreso y el resumen final.
+// Package runner orchestrates the concurrent conversion of a batch of images:
+// distributes work among workers, deletes originals when applicable, and prints
+// progress and the final summary.
 package runner
 
 import (
@@ -22,17 +22,17 @@ const (
 	removeRetryWait = 1 * time.Second
 )
 
-// Summary es el resultado agregado de correr todo el lote.
+// Summary is the aggregated result of running the whole batch.
 type Summary struct {
 	OK   int
 	Fail int
 }
 
-// Run convierte files al formato indicado usando un pool de workers,
-// respetando las opciones (force, remove-original, rename, quality, dry-run).
-// Muestra una barra de progreso en vivo en stdout; los detalles de cada
-// archivo con fallo se acumulan y se listan al final para no interrumpir
-// la barra mientras corre.
+// Run converts files to the given format using a worker pool,
+// respecting the options (force, remove-original, rename, quality, dry-run).
+// It shows a live progress bar on stdout; details of each failed file
+// are accumulated and listed at the end so as not to interrupt
+// the bar while it's running.
 func Run(files []string, outFmt format.OutputFormat, opts cliopts.Options) Summary {
 	params := converter.Params{
 		Force:      opts.Force,
@@ -77,7 +77,7 @@ func Run(files []string, outFmt format.OutputFormat, opts cliopts.Options) Summa
 			if res.OK && opts.RemoveOriginal {
 				if opts.DryRun {
 					relSrc, _ := filepath.Rel(opts.Dir, res.Src)
-					bar.logLine(fmt.Sprintf("🧹 (dry-run) se borraría: %s", relSrc))
+					bar.logLine(fmt.Sprintf("🧹 (dry-run) would delete: %s", relSrc))
 				} else {
 					removeOriginal(res.Src, opts.Dir, bar)
 				}
@@ -109,13 +109,13 @@ func Run(files []string, outFmt format.OutputFormat, opts cliopts.Options) Summa
 func formatFailureLine(src string, res converter.Result, baseDir string) string {
 	relSrc, _ := filepath.Rel(baseDir, src)
 	relDest, _ := filepath.Rel(baseDir, res.Dest)
-	return fmt.Sprintf("[FALLO] %s -> %s | %s", relSrc, relDest, res.Reason)
+	return fmt.Sprintf("[FAILED] %s -> %s | %s", relSrc, relDest, res.Reason)
 }
 
-// removeOriginal intenta borrar el archivo original con reintentos, ya que
-// en algunos filesystems/red el archivo puede quedar bloqueado brevemente
-// tras la lectura. Los mensajes van a través de bar.logLine para no pisar
-// la línea de la barra de progreso.
+// removeOriginal attempts to delete the original file with retries, since
+// on some filesystems/network shares the file may remain briefly locked
+// after reading. Messages go through bar.logLine so as not to overwrite
+// the progress bar line.
 func removeOriginal(src, baseDir string, bar *progressBar) {
 	var lastErr error
 	for tries := 0; tries < removeRetries; tries++ {
@@ -125,8 +125,8 @@ func removeOriginal(src, baseDir string, bar *progressBar) {
 			continue
 		}
 		relSrc, _ := filepath.Rel(baseDir, src)
-		bar.logLine(fmt.Sprintf("🧹 Borrado original: %s", relSrc))
+		bar.logLine(fmt.Sprintf("🧹 Deleted original: %s", relSrc))
 		return
 	}
-	bar.logLine(fmt.Sprintf("⚠️ No se pudo borrar original: %s (%v)", src, lastErr))
+	bar.logLine(fmt.Sprintf("⚠️ Could not delete original: %s (%v)", src, lastErr))
 }
