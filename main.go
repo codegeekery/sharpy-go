@@ -1,7 +1,7 @@
-// sharpy - Conversor de imágenes CLI (puerto a Go del proyecto original en Node.js/Sharp)
+// sharpy - CLI image converter (Go port of the original Node.js/Sharp project)
 //
-// Usa govips (bindings de libvips) como motor de conversión, el mismo motor que
-// usa la librería "sharp" de Node.js, para mantener paridad de resultados.
+// Uses govips (libvips bindings) as the conversion engine, the same engine
+// used by Node.js's "sharp" library, to keep result parity.
 package main
 
 import (
@@ -18,38 +18,44 @@ import (
 )
 
 func main() {
-	// govips necesita inicializar libvips explícitamente antes de usarlo,
-	// y liberar sus recursos al salir. bimg hacía esto de forma implícita,
-	// govips no.
-	vips.Startup(nil)
-	defer vips.Shutdown()
-
+	// Parse args first: -h/--help and invalid-argument cases call os.Exit
+	// inside ShowHelpAndExit, so we avoid initializing libvips unless we're
+	// actually going to convert something.
 	outFmt, opts := cliopts.Parse(os.Args[1:])
 
 	stat, err := os.Stat(opts.Dir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Carpeta no encontrada: %s\n", opts.Dir)
+		fmt.Fprintf(os.Stderr, "Folder not found: %s\n", opts.Dir)
 		os.Exit(1)
 	}
 	if !stat.IsDir() {
-		fmt.Fprintf(os.Stderr, "La ruta no es carpeta: %s\n", opts.Dir)
+		fmt.Fprintf(os.Stderr, "Path is not a folder: %s\n", opts.Dir)
 		os.Exit(1)
 	}
 
 	files, err := scanner.ListImages(opts.Dir, opts.Recursive, format.ExcludeExt(outFmt))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error listando imágenes:", err)
+		fmt.Fprintln(os.Stderr, "Error listing images:", err)
 		os.Exit(1)
 	}
 	if len(files) == 0 {
-		fmt.Println("No se encontraron imágenes soportadas que no estén ya en el formato de destino.")
+		fmt.Println("No supported images found that aren't already in the destination format.")
 		return
 	}
 
-	fmt.Printf("Encontradas %d imagen(es). Convirtiendo a %s... [rename: %s]\n",
+	// Silence govips/libvips internal logging (info/debug noise) so only
+	// our own output is shown to the user.
+	vips.LoggingSettings(nil, vips.LogLevelError)
+
+	// govips needs to explicitly initialize libvips before use, and free
+	// its resources on exit. bimg used to do this implicitly; govips doesn't.
+	vips.Startup(nil)
+	defer vips.Shutdown()
+
+	fmt.Printf("Found %d image(s). Converting to %s... [rename: %s]\n",
 		len(files), strings.ToUpper(string(outFmt)), opts.Rename)
 
 	summary := runner.Run(files, outFmt, opts)
 
-	fmt.Printf("\nCompletado: %d convertido(s), %d con error.\n", summary.OK, summary.Fail)
+	fmt.Printf("\nCompleted: %d converted, %d failed.\n", summary.OK, summary.Fail)
 }
