@@ -35,6 +35,7 @@ brew install vips
 fails with "Unsupported compression"; reading/decoding AVIF works fine without it).
 
 
+
 ## Installation
 
 ### Option 1: Download the binary (recommended)
