@@ -1,11 +1,10 @@
 // Package format define los formatos de salida soportados por sharpy
-// y las conversiones necesarias hacia bimg (tipo de imagen, extensión, etc).
+// y las conversiones necesarias hacia govips (tipo de imagen, extensión, etc).
 package format
 
 import (
 	"strings"
-
-	"github.com/h2non/bimg"
+	"github.com/davidbyttow/govips/v2/vips"
 )
 
 type OutputFormat string
@@ -19,15 +18,12 @@ const (
 	TIFF OutputFormat = "tiff"
 )
 
-// Supported es la lista canónica de formatos de salida aceptados por CLI.
 var Supported = []OutputFormat{JPEG, JPG, PNG, WebP, AVIF, TIFF}
 
-// SupportedInputs son las extensiones de archivo que sharpy sabe leer como entrada.
 var SupportedInputs = map[string]bool{
 	"jpg": true, "jpeg": true, "png": true, "webp": true, "avif": true, "tif": true, "tiff": true,
 }
 
-// Contains indica si v está en la lista de formatos dada.
 func Contains(list []OutputFormat, v OutputFormat) bool {
 	for _, f := range list {
 		if f == v {
@@ -37,7 +33,6 @@ func Contains(list []OutputFormat, v OutputFormat) bool {
 	return false
 }
 
-// Names arma "jpeg, jpg, png, ..." para mensajes de ayuda/error.
 func Names(list []OutputFormat) string {
 	out := make([]string, len(list))
 	for i, f := range list {
@@ -46,7 +41,6 @@ func Names(list []OutputFormat) string {
 	return strings.Join(out, ", ")
 }
 
-// Normalize colapsa alias (jpg -> jpeg) a la forma canónica.
 func Normalize(f OutputFormat) OutputFormat {
 	if f == JPG {
 		return JPEG
@@ -54,7 +48,6 @@ func Normalize(f OutputFormat) OutputFormat {
 	return f
 }
 
-// Ext devuelve la extensión de archivo (con punto) para un formato de salida.
 func Ext(f OutputFormat) string {
 	switch f {
 	case JPEG:
@@ -72,8 +65,6 @@ func Ext(f OutputFormat) string {
 	}
 }
 
-// ExcludeExt devuelve la extensión de archivo de ENTRADA a excluir del listado,
-// para no volver a convertir imágenes que ya están en el formato destino.
 func ExcludeExt(f OutputFormat) string {
 	if f == JPEG {
 		return "jpg"
@@ -81,12 +72,21 @@ func ExcludeExt(f OutputFormat) string {
 	return string(f)
 }
 
-// BimgOptions arma las bimg.Options correspondientes a un formato de salida,
-// aplicando la calidad indicada (o un default sensato si no fue especificada).
-// ok=false si el formato no está manejado.
-func BimgOptions(f OutputFormat, quality int, hasQuality bool) (bimg.Options, bool) {
-	opts := bimg.Options{}
+// IsSupported indica si f tiene una ruta de exportación implementada.
+// Reemplaza el "ok" que antes devolvía BimgOptions.
+func IsSupported(f OutputFormat) bool {
+	switch f {
+	case JPEG, WebP, AVIF, PNG, TIFF:
+		return true
+	default:
+		return false
+	}
+}
 
+// Export codifica img al formato de salida f, aplicando la calidad indicada
+// (o un default sensato si no fue especificada). Devuelve ok=false si el
+// formato no está manejado (mismo contrato que antes tenía BimgOptions).
+func Export(img *vips.ImageRef, f OutputFormat, quality int, hasQuality bool) (buf []byte, ok bool, err error) {
 	qualityOr := func(def int) int {
 		if hasQuality {
 			return quality
@@ -96,22 +96,29 @@ func BimgOptions(f OutputFormat, quality int, hasQuality bool) (bimg.Options, bo
 
 	switch f {
 	case JPEG:
-		opts.Type = bimg.JPEG
-		opts.Quality = qualityOr(80)
+		buf, _, err = img.ExportJpeg(&vips.JpegExportParams{
+			Quality: qualityOr(80),
+		})
 	case WebP:
-		opts.Type = bimg.WEBP
-		opts.Quality = qualityOr(80)
+		buf, _, err = img.ExportWebp(&vips.WebpExportParams{
+			Quality: qualityOr(80),
+		})
 	case AVIF:
-		opts.Type = bimg.AVIF
-		opts.Quality = qualityOr(50)
+		buf, _, err = img.ExportAvif(&vips.AvifExportParams{
+			Quality: qualityOr(50),
+		})
 	case PNG:
-		opts.Type = bimg.PNG
+		buf, _, err = img.ExportPng(vips.NewPngExportParams())
 	case TIFF:
-		opts.Type = bimg.TIFF
-		opts.Quality = qualityOr(80)
+		buf, _, err = img.ExportTiff(&vips.TiffExportParams{
+			Quality: qualityOr(80),
+		})
 	default:
-		return bimg.Options{}, false
+		return nil, false, nil
 	}
 
-	return opts, true
+	if err != nil {
+		return nil, true, err
+	}
+	return buf, true, nil
 }

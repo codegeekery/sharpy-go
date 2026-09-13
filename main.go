@@ -1,6 +1,6 @@
 // sharpy - Conversor de imágenes CLI (puerto a Go del proyecto original en Node.js/Sharp)
 //
-// Usa bimg (bindings de libvips) como motor de conversión, el mismo motor que
+// Usa govips (bindings de libvips) como motor de conversión, el mismo motor que
 // usa la librería "sharp" de Node.js, para mantener paridad de resultados.
 package main
 
@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/davidbyttow/govips/v2/vips"
+
 	"sharpy/internal/cliopts"
 	"sharpy/internal/format"
 	"sharpy/internal/runner"
@@ -16,6 +18,12 @@ import (
 )
 
 func main() {
+	// govips necesita inicializar libvips explícitamente antes de usarlo,
+	// y liberar sus recursos al salir. bimg hacía esto de forma implícita,
+	// govips no.
+	vips.Startup(nil)
+	defer vips.Shutdown()
+
 	outFmt, opts := cliopts.Parse(os.Args[1:])
 
 	stat, err := os.Stat(opts.Dir)
