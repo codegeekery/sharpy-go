@@ -56,13 +56,7 @@ func Run(files []string, outFmt format.OutputFormat, opts cliopts.Options) Summa
 	// proportional speed gain. This ratio keeps CPU well fed without
 	// over-committing memory.
 	
-        workerCount := runtime.NumCPU() / 2
-	if workerCount < 1 {
-	    workerCount = 1
-	}
-	if total < workerCount {
-	    workerCount = total
-	}
+        workerCount := max(1, min(total, runtime.NumCPU()/4))
 
 	worker := func() {
 		defer wg.Done()

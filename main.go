@@ -60,7 +60,11 @@ func main() {
 	// images ourselves (see runner); letting libvips also multithread a
 	// single image would fight our own worker pool for CPU.
 	vips.Startup(&vips.Config{
-		ConcurrencyLevel: 1,
+		ConcurrencyLevel: 4, 			// Limit concurrent threads used by vips 
+		MaxCacheFiles: 100, 			// Max number of intermediate files vips can
+		MaxCacheMem: 500 * 1024 * 1024, 	// 500MB max memory for vips
+		MaxCacheSize: 1000, 	  		// Max number of operations to keep in cache
+        	// ReportInputBufferLeaks: true, 	// Useful for debugging memory leaks
 	})
 	defer vips.Shutdown()
 
